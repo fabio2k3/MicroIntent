@@ -13,14 +13,17 @@
 7. [Posicionamiento del proyecto](#7-posicionamiento-del-proyecto)
 8. [Conclusiones](#8-conclusiones)
 9. [Referencias](#9-referencias)
+10. [Anexo A. Abreviaturas y términos](#anexo-a-abreviaturas-y-términos)
+
+<!-- **Organización del documento.** La sección 2 delimita la tarea y el alcance. La sección 3 revisa seis familias de técnicas; cada subsección comienza con una descripción de la técnica (qué es, cómo funciona, qué requiere, cuándo conviene y sus limitaciones) y a continuación presenta la evidencia de los trabajos del corpus. Las secciones 4 a 8 comparan los resultados, describen la evaluación, identifican las brechas y derivan las preguntas de investigación. El Anexo A reúne las siglas y términos técnicos utilizados. -->
 
 ---
 
 ## 1. Introducción
 
-La clasificación de intención consiste en asignar a un enunciado del usuario una etiqueta de un conjunto cerrado de intenciones (por ejemplo, `alarm_set`). Es el primer paso de los asistentes de voz, los agentes de atención al cliente y los sistemas de enrutamiento de modelos de lenguaje (Ganesh et al., 2026; Chen et al., 2026).
+La clasificación de intención consiste en asignar a un enunciado del usuario una etiqueta de un conjunto cerrado de intenciones (por ejemplo, `alarm_set`). Es el primer paso de los asistentes de voz, los agentes de atención al cliente y los sistemas de enrutamiento de modelos de lenguaje (Ganesh et al., 2026; Chen et al., 2026). Una vez identificada la intención, el sistema decide qué acción ejecutar o a qué componente derivar la consulta; por eso un error en esta etapa se propaga a todo el flujo posterior.
 
-Los grandes modelos de lenguaje (LLM) resuelven esta tarea con buena calidad, pero su despliegue es costoso. Wang et al. (2024) señalan cuatro limitaciones: la dependencia de la nube y los problemas de privacidad que implica, la imposibilidad de ejecutarlos en el dispositivo, la latencia inadecuada para aplicaciones en tiempo real y el alto costo de adaptarlos a dominios específicos. Como ejemplo, estiman en unos 202.5 GB la memoria que requiere Llama 3.1 405B incluso con precisión int4.
+Los grandes modelos de lenguaje (LLM, *large language models*) resuelven esta tarea con buena calidad, pero su despliegue es costoso. Wang et al. (2024) señalan cuatro limitaciones: la dependencia de la nube y los problemas de privacidad que implica, la imposibilidad de ejecutarlos en el dispositivo, la latencia inadecuada para aplicaciones en tiempo real y el alto costo de adaptarlos a dominios específicos. Como ejemplo, estiman en unos 202.5 GB la memoria que requiere Llama 3.1 405B incluso con precisión int4.
 
 Este proyecto trabaja con una restricción explícita: **solo se consideran modelos de menos de 4B (4 mil millones) de parámetros**. La pregunta que organiza este documento es la siguiente: **dentro de ese límite, ¿qué estrategias permiten obtener la mejor clasificación de intención posible y qué evidencia las respalda?**
 
@@ -28,7 +31,13 @@ Este proyecto trabaja con una restricción explícita: **solo se consideran mode
 
 ### 2.1 Tarea
 
-Se considera clasificación de intención de una sola etiqueta sobre enunciados individuales, con tres variantes frecuentes en la literatura: zero-shot (solo nombres o descripciones de las intenciones), few-shot (de 1 a unas decenas de ejemplos por intención) y supervisada con datos completos. Se considera además la detección de enunciados fuera de dominio (OOS, *out-of-scope*), necesaria en sistemas reales (Larson et al., 2019).
+Se considera clasificación de intención de una sola etiqueta sobre enunciados individuales, con tres variantes frecuentes en la literatura:
+
+- **Zero-shot:** el modelo solo dispone de los nombres o descripciones de las intenciones, sin ningún ejemplo etiquetado.
+- **Few-shot:** se dispone de entre 1 y unas decenas de ejemplos etiquetados por intención.
+- **Supervisada con datos completos:** se dispone de un conjunto de entrenamiento grande para todas las intenciones.
+
+Se considera además la detección de enunciados fuera de dominio (OOS, *out-of-scope*), es decir, aquellos que no corresponden a ninguna de las intenciones soportadas y que un sistema real debe reconocer para no forzar una etiqueta incorrecta (Larson et al., 2019).
 
 ### 2.2 Criterio de inclusión: menos de 4B parámetros
 
@@ -52,13 +61,40 @@ La revisión conserva únicamente los resultados de modelos con menos de 4B par�
 
 La revisión se basa en nueve trabajos publicados entre 2023 y 2026, identificados mediante búsquedas en arXiv y revisados en su texto completo. Se priorizaron los trabajos que evalúan modelos de este rango de tamaño en clasificación de intención o que aportan técnicas directamente aplicables (embeddings compactos, adaptación con pocos datos, destilación y compresión). Los conjuntos de datos y métodos de referencia que estos trabajos citan se mencionan como fuentes secundarias.
 
+Para describir las técnicas base (por ejemplo, LoRA, IA3 o GPTQ) se citan, además, los trabajos originales que las proponen. Estos trabajos no forman parte del corpus evaluado: se emplean únicamente para definir cada técnica y no para extraer resultados.
+
 ## 3. Revisión por enfoque
+
+**Estructura de cada subsección.** Para facilitar la lectura, cada enfoque se presenta con el mismo esquema: (i) *qué es*, (ii) *cómo funciona*, (iii) *qué requiere*, (iv) *cuándo conviene y limitaciones generales* y (v) *referencia canónica*. Después se exponen los resultados de los trabajos del corpus. La Tabla 1 resume las técnicas de forma comparada.
+
+**Tabla 1.** Mapa de las técnicas revisadas.
+
+| Enfoque | Qué se entrena | Datos etiquetados necesarios | Hardware típico de inferencia | Subsección |
+|---|---|---|---|---|
+| Zero-shot con LLM | Nada | Ninguno | GPU (o CPU con cuantización) | 3.1 |
+| Embeddings congelados + clasificador ligero | Solo el clasificador | Pocos (de 4 a cientos por clase) | CPU | 3.2 |
+| Fine-tuning eficiente (PEFT) y prompt learning | Un pequeño subconjunto de parámetros | Pocos (de 1 a decenas por clase) | GPU | 3.3 |
+| Datos sintéticos y destilación | El modelo estudiante | Pocos o ninguno reales; muchos sintéticos | CPU o GPU pequeña | 3.4 |
+| Métodos sin entrenamiento sobre activaciones | Nada (se calculan estadísticas) | Pocos | GPU | 3.5 |
+| Compresión y despliegue | Opcional (recuperación con LoRA) | Ninguno o pocos | CPU, GPU o dispositivos de borde | 3.6 |
 
 ### 3.1 Zero-shot con modelos de lenguaje
 
-Ganesh et al. (2026) realizan la evaluación más amplia de modelos abiertos de menos de 10B parámetros: 41 modelos de 15 familias, entre 135M y 9B, en ocho datasets zero-shot (CLINC150, Banking77, SNIPS, MASSIVE, MTOP y tres datasets de comercio electrónico de HINT3), más ATIS con cinco demostraciones, que se excluye del agregado. La Tabla 1 recoge los modelos de menos de 4B (agregado de ocho datasets, con cómputo medido en una sola GPU):
+**Qué es.** Es el uso directo de un modelo de lenguaje, sin ningún entrenamiento adicional ni ejemplos etiquetados, para decidir a qué intención corresponde un enunciado. El modelo se apoya únicamente en el conocimiento adquirido durante su preentrenamiento y en las instrucciones del prompt.
 
-**Tabla 1.** Resultados zero-shot de los modelos de menos de 4B parámetros (Ganesh et al., 2026).
+**Cómo funciona.** El prompt contiene la lista de intenciones posibles (con su nombre o una breve descripción) y el enunciado a clasificar; el modelo genera la etiqueta como texto. Existen dos formas de leer la respuesta: la *generación libre*, en la que se interpreta el texto producido, y la *decodificación restringida* o *puntuación de etiquetas*, en la que solo se permiten salidas válidas o se compara la verosimilitud que el modelo asigna a cada etiqueta (Willard y Louf, 2023). La generación libre es más simple pero puede producir salidas que no corresponden a ninguna etiqueta. Un factor decisivo es el *instruction tuning*, es decir, el ajuste del modelo con instrucciones y respuestas para que siga órdenes en lenguaje natural (Wei et al., 2022); por eso las versiones «instruct» de un modelo suelen rendir mejor que las «base».
+
+**Qué requiere.** No necesita datos etiquetados ni entrenamiento. Requiere memoria suficiente para cargar el modelo y un prompt que crece con el número de intenciones, lo que aumenta la latencia cuando el catálogo es grande.
+
+**Cuándo conviene y limitaciones.** Es la opción más rápida de poner en marcha y la adecuada cuando no hay datos. Sus debilidades son la sensibilidad a la redacción del prompt, la dependencia del tamaño y de la calidad del modelo, la posible ambigüedad de los nombres de las intenciones y la ausencia de calibración garantizada.
+
+**Referencia canónica.** Brown et al. (2020) para el uso de modelos de lenguaje con instrucciones y ejemplos en el contexto; Wei et al. (2022) para el instruction tuning.
+
+#### Evidencia del corpus
+
+Ganesh et al. (2026) realizan la evaluación más amplia de modelos abiertos de menos de 10B parámetros: 41 modelos de 15 familias, entre 135M y 9B, en ocho datasets zero-shot (CLINC150, Banking77, SNIPS, MASSIVE, MTOP y tres datasets de comercio electrónico de HINT3), más ATIS con cinco demostraciones, que se excluye del agregado. La Tabla 2 recoge los modelos de menos de 4B (agregado de ocho datasets, con cómputo medido en una sola GPU):
+
+**Tabla 2.** Resultados zero-shot de los modelos de menos de 4B parámetros (Ganesh et al., 2026).
 
 | Modelo | Parámetros (B) | VRAM (GB) | Latencia (ms/muestra) | Agregado (8 datasets) |
 |---|---|---|---|---|
@@ -79,7 +115,7 @@ Ganesh et al. (2026) realizan la evaluación más amplia de modelos abiertos de 
 
 Los hallazgos principales dentro del límite de 4B son:
 
-- **El mejor modelo del rango es Qwen2.5-3B-Instruct** (0.632), que además es Pareto-óptimo en exactitud, latencia y parámetros. Phi-3.5-mini-Instruct le sigue con 0.624, pero con casi el doble de latencia y más memoria, y no es Pareto-óptimo.
+- **El mejor modelo del rango es Qwen2.5-3B-Instruct** (0.632), que además es Pareto-óptimo en exactitud, latencia y parámetros (ningún otro modelo lo supera en las tres dimensiones a la vez). Phi-3.5-mini-Instruct le sigue con 0.624, pero con casi el doble de latencia y más memoria, y no es Pareto-óptimo.
 - **El límite cuesta poco en zero-shot.** El mejor modelo de todo el estudio, Mistral-7B-Instruct-v0.3 (7B, fuera del límite), obtiene 0.660, apenas 0.028 puntos por encima de Qwen2.5-3B-Instruct. Cinco de los seis mejores modelos son de 7B a 9B.
 - **Por debajo de 3B el rendimiento cae.** Qwen2-1.5B-Instruct es el único modelo de menos de 3B que supera 0.5 (0.512). Los modelos de 1B o menos obtienen agregados de 0.28 o inferiores.
 - **El instruction tuning pesa más que la escala.** En las parejas base/instruct de este rango, la versión instruct mejora el agregado (por ejemplo, Qwen2.5-3B: 0.632 frente a 0.538; Llama-3.2-3B: 0.508 frente a 0.485; Qwen2.5-0.5B: 0.274 frente a 0.205). Qwen2.5-3B-Instruct supera además a varios modelos de 7B sin instruction tuning.
@@ -90,15 +126,25 @@ Los hallazgos principales dentro del límite de 4B son:
 
 Los autores declaran como limitaciones que la evaluación es solo en inglés, usa las primeras 500 muestras de cada conjunto de prueba y emplea una única semilla en el análisis de robustez.
 
-Parikh et al. (2023) aportan una técnica útil para prompts largos: cuando hay muchas intenciones, recuperan con similitud de oraciones las cinco intenciones más probables y solo ellas se incluyen en el prompt.
+**Recuperación de intenciones candidatas.** Parikh et al. (2023) aportan una técnica útil para prompts largos: cuando hay muchas intenciones, recuperan con similitud de oraciones las cinco intenciones más probables y solo ellas se incluyen en el prompt, lo que acorta el contexto y reduce la latencia.
 
 ### 3.2 Embeddings congelados y clasificadores ligeros
 
-Este enfoque separa la representación del texto (un codificador preentrenado, congelado) de la decisión (un clasificador pequeño sobre los vectores). Su principal ventaja es que el costo de inferencia queda dominado por el codificador y que el clasificador puede reentrenarse en segundos.
+**Qué es.** Es una estrategia en dos etapas que separa la *representación* del texto de la *decisión*. Un codificador de oraciones preentrenado convierte cada enunciado en un vector numérico (*embedding*) y un clasificador pequeño, entrenado sobre esos vectores, asigna la intención.
 
-**EmbeddingGemma** (Vera et al., 2025) es un modelo de embeddings de 308M parámetros, inicializado desde el codificador de un modelo codificador-decodificador basado en Gemma 3 y entrenado con destilación de embeddings desde Gemini Embedding, un regularizador de dispersión y fusión de checkpoints (*model souping*). Es el mejor modelo de menos de 500M en MTEB multilingüe, inglés y código, y esa ventaja se mantiene al truncar los embeddings a 128 dimensiones (gracias a Matryoshka, con 768, 512, 256 y 128 dimensiones disponibles) o al cuantizar los pesos a 4 bits. La Tabla 1 del trabajo muestra una degradación pequeña por cuantización:
+**Cómo funciona.** El codificador permanece congelado: sus pesos no se modifican. Se calculan los embeddings de los ejemplos etiquetados una sola vez y sobre ellos se entrena un clasificador simple, como regresión logística, kNN (vecinos más cercanos), bosques aleatorios o árboles con gradiente. Los codificadores de este tipo se entrenan para que enunciados de significado parecido queden cerca en el espacio vectorial (Reimers y Gurevych, 2019; Feng et al., 2022). En inferencia, el costo está dominado por el codificador, que se ejecuta una vez por enunciado.
 
-**Tabla 2.** EmbeddingGemma bajo cuantización (Vera et al., 2025).
+**Qué requiere.** Pocos datos etiquetados y muy poco cómputo: el clasificador puede reentrenarse en segundos y todo el sistema puede ejecutarse en CPU.
+
+**Cuándo conviene y limitaciones.** Es adecuado cuando hay pocos datos, cuando el catálogo de intenciones cambia con frecuencia (basta reentrenar el clasificador, no el codificador) y cuando el hardware es limitado. Su limitación es que la calidad queda acotada por la capacidad del codificador para distinguir intenciones muy parecidas, ya que este no se adapta al dominio.
+
+**Referencia canónica.** Reimers y Gurevych (2019) para los codificadores de oraciones; Muennighoff et al. (2023) para el benchmark MTEB con que se evalúan los embeddings.
+
+#### Evidencia del corpus
+
+**EmbeddingGemma** (Vera et al., 2025) es un modelo de embeddings de 308M parámetros, inicializado desde el codificador de un modelo codificador-decodificador basado en Gemma 3 y entrenado con destilación de embeddings desde Gemini Embedding, un regularizador de dispersión y fusión de checkpoints (*model souping*, que consiste en promediar los pesos de varios modelos entrenados). Es el mejor modelo de menos de 500M en MTEB multilingüe, inglés y código, y esa ventaja se mantiene al truncar los embeddings a 128 dimensiones (gracias a Matryoshka, una técnica de entrenamiento que hace que los primeros componentes del vector ya sean utilizables por sí solos, con 768, 512, 256 y 128 dimensiones disponibles; Kusupati et al., 2022) o al cuantizar los pesos a 4 bits. La Tabla 1 del trabajo original muestra una degradación pequeña por cuantización:
+
+**Tabla 3.** EmbeddingGemma bajo cuantización (Vera et al., 2025).
 
 | Precisión | MTEB Multilingüe v2 (media por tarea) | MTEB Inglés v2 (media por tarea) |
 |---|---|---|
@@ -108,25 +154,52 @@ Este enfoque separa la representación del texto (un codificador preentrenado, c
 
 La evaluación de MTEB abarca más de 250 idiomas y varios tipos de tarea, entre ellos la clasificación, pero el trabajo no evalúa la clasificación de intención de forma específica.
 
-**AutoIntent** (Alekseev et al., 2025) es un marco de AutoML con tres módulos: embedding, puntuación (*scoring*) y decisión, esta última con umbrales para fuera de dominio y multi-etiqueta. Los clasificadores operan sobre embeddings precalculados, lo que permite el despliegue en CPU. En cinco datasets (Banking77, HWU64, MASSIVE, MINDS-14 y SNIPS), los presets «classic» (kNN, regresión logística, bosques aleatorios y CatBoost) obtienen una exactitud media de 93.2 % (classic-light) y 93.5 % (classic-medium), con 136 s y 216 s de entrenamiento respectivamente. Para comparar, AutoGluon en su configuración media alcanza 92.4 % en 461 s. En CLINC150, con detección fuera de dominio, AutoIntent mantiene una exactitud en dominio de 96.13 % y un F1 de la clase OOS de aproximadamente 76, frente a unos 48 de AutoGluon. En escenarios con pocos datos (de 4 a 128 ejemplos por clase), los autores atribuyen su ventaja a los métodos basados en vecinos. Su preset zero-shot basado en un LLM por API (87.0 %) queda fuera del límite de 4B y solo sirve de referencia. Limitaciones declaradas: no se realizaron estudios con usuarios y la evaluación se limita a conjuntos de intención.
+**AutoIntent** (Alekseev et al., 2025) es un marco de AutoML (aprendizaje automático automatizado: selecciona y ajusta de forma automática los componentes del sistema) con tres módulos: embedding, puntuación (*scoring*) y decisión, esta última con umbrales para fuera de dominio y multi-etiqueta. Los clasificadores operan sobre embeddings precalculados, lo que permite el despliegue en CPU. En cinco datasets (Banking77, HWU64, MASSIVE, MINDS-14 y SNIPS), los presets «classic» (kNN, regresión logística, bosques aleatorios y CatBoost) obtienen una exactitud media de 93.2 % (classic-light) y 93.5 % (classic-medium), con 136 s y 216 s de entrenamiento respectivamente. Para comparar, AutoGluon en su configuración media alcanza 92.4 % en 461 s. En CLINC150, con detección fuera de dominio, AutoIntent mantiene una exactitud en dominio de 96.13 % y un F1 de la clase OOS de aproximadamente 76, frente a unos 48 de AutoGluon. En escenarios con pocos datos (de 4 a 128 ejemplos por clase), los autores atribuyen su ventaja a los métodos basados en vecinos. Su preset zero-shot basado en un LLM por API (87.0 %) queda fuera del límite de 4B y solo sirve de referencia. Limitaciones declaradas: no se realizaron estudios con usuarios y la evaluación se limita a conjuntos de intención.
 
-**Adaptación de dominio.** Parikh et al. (2023) entrenan un codificador de oraciones de tamaño comparable a LaBSE con tareas de similitud sobre taxonomías de intención y paráfrasis, y lo usan congelado con una capa densa. Con 3 a 5 ejemplos por intención mejora más de 5 puntos a modelos de tamaño similar y queda a 2-3 puntos de GTR-3B (fuera del límite), un modelo unas 30 veces mayor.
+**Adaptación de dominio del codificador.** Parikh et al. (2023) entrenan un codificador de oraciones de tamaño comparable a LaBSE con tareas de similitud sobre taxonomías de intención y paráfrasis, y lo usan congelado con una capa densa (una capa de clasificación). Con 3 a 5 ejemplos por intención mejora más de 5 puntos a modelos de tamaño similar y queda a 2-3 puntos de GTR-3B (fuera del límite), un modelo unas 30 veces mayor.
 
 ### 3.3 Fine-tuning eficiente y aprendizaje por prompts
 
+**Qué es.** El *fine-tuning* ajusta un modelo ya preentrenado a una tarea concreta con datos etiquetados. El *fine-tuning eficiente en parámetros* (PEFT, *parameter-efficient fine-tuning*) lo hace modificando solo una fracción muy pequeña de los parámetros, mientras el resto del modelo permanece congelado. El *aprendizaje por prompts* es una variante en la que la tarea se reformula como completar un texto y se aprenden (o se diseñan) los elementos del prompt en lugar de reentrenar el modelo completo.
+
+**Cómo funciona.** Las variantes más usadas son:
+
+- **LoRA** (*low-rank adaptation*): congela los pesos originales y aprende, para cada matriz de pesos elegida, una actualización expresada como el producto de dos matrices pequeñas de rango bajo; solo estas matrices se entrenan (Hu et al., 2022). **QLoRA** aplica la misma idea sobre un modelo base cuantizado a 4 bits, lo que reduce aún más la memoria necesaria (Dettmers et al., 2023).
+- **IA3**: en lugar de sumar matrices, aprende vectores que reescalan las activaciones internas del modelo (claves, valores y capa intermedia de la red), con muy pocos parámetros nuevos. Se propuso como parte de la receta **T-Few**, diseñada para el aprendizaje con pocos ejemplos (Liu et al., 2022).
+- **Prompt tuning**: se aprenden vectores continuos («prompts suaves») que se anteponen a la entrada, con el modelo completamente congelado (Lester et al., 2021).
+- **SetFit**: ajusta un codificador de oraciones con aprendizaje contrastivo sobre pares de ejemplos (acerca los de la misma clase y aleja los de clases distintas) y entrena después una cabeza de clasificación simple, sin necesidad de prompts (Tunstall et al., 2022).
+
+**Qué requiere.** Pocos ejemplos etiquetados (de 1 a unas decenas por intención en los casos del corpus) y una GPU para el entrenamiento. Los adaptadores resultantes son archivos pequeños que se pueden guardar por separado del modelo base.
+
+**Cuándo conviene y limitaciones.** Es la opción habitual cuando hay algunos datos etiquetados y se quiere superar al zero-shot sin el costo de reentrenar todo el modelo. Sus limitaciones son la sensibilidad a la selección de los ejemplos de entrenamiento cuando son muy pocos, la necesidad de entrenar para cada dominio y la dependencia de la calidad del modelo base.
+
+**Referencias canónicas.** Hu et al. (2022) para LoRA; Liu et al. (2022) para IA3 y T-Few; Lester et al. (2021) para prompt tuning; Tunstall et al. (2022) para SetFit.
+
+#### Evidencia del corpus
+
 **Adaptadores sobre modelos de instrucciones.** Parikh et al. (2023) aplican la receta T-Few (Liu et al., 2022), con adaptadores IA3, sobre Flan-T5 (Chung et al., 2022), con 1, 3 o 5 ejemplos por intención. Es el mejor de los cuatro métodos que comparan. Dentro del límite de 4B, Flan-T5-XL (3B) supera a todos los demás métodos con un solo ejemplo por intención, y Flan-T5-Large (770M) supera a todos salvo a Flan-T5-XXL (11B, fuera del límite) en uno de sus datasets. Los autores concluyen que un modelo mucho menor que GPT-3 puede igualarlo o superarlo con descripciones de intención y unos pocos ejemplos.
 
-**Aprendizaje por prompts con estructura conversacional.** Zhang et al. (2025) proponen SAID, que preentrena un modelo con tokens de relación suaves (relaciones consulta-consulta y consulta-respuesta dentro de una sesión) y reformula el problema few-shot como aprendizaje por prompts. Con BERT como backbone y comparado con BERT, RoBERTa, DistilBERT, ALBERT, CPFT, IntentBERT (Zhang et al., 2021), DNNC, SetFit (Tunstall et al., 2022), LLM-Aug y DFT++, obtiene en IntentChat con 3 ejemplos por clase una exactitud de 52.73 %, frente a 40.59 % de RoBERTa y 40.04 % de SetFit. Con 20 ejemplos por clase (74.05 %) supera a Qwen-7B en zero-shot (72.57 %, fuera del límite). El marco funciona también con DistilBERT y ALBERT. Sus limitaciones para otros contextos son que necesita sesiones de conversación para el preentrenamiento y que uno de los dos datasets (IntentChat) es privado; el otro (WildChat anotado) se publica con el trabajo.
+**Aprendizaje por prompts con estructura conversacional.** Zhang et al. (2025) proponen SAID, que preentrena un modelo con tokens de relación suaves (relaciones consulta-consulta y consulta-respuesta dentro de una sesión, es decir, dentro de una misma conversación) y reformula el problema few-shot como aprendizaje por prompts. Con BERT como backbone y comparado con BERT, RoBERTa, DistilBERT, ALBERT, CPFT, IntentBERT (Zhang et al., 2021), DNNC, SetFit (Tunstall et al., 2022), LLM-Aug y DFT++, obtiene en IntentChat con 3 ejemplos por clase una exactitud de 52.73 %, frente a 40.59 % de RoBERTa y 40.04 % de SetFit. Con 20 ejemplos por clase (74.05 %) supera a Qwen-7B en zero-shot (72.57 %, fuera del límite). El marco funciona también con DistilBERT y ALBERT. Sus limitaciones para otros contextos son que necesita sesiones de conversación para el preentrenamiento y que uno de los dos datasets (IntentChat) es privado; el otro (WildChat anotado) se publica con el trabajo.
 
 ### 3.4 Datos sintéticos y destilación
 
-Wang et al. (2024) distinguen la destilación de caja blanca, donde el estudiante accede a distribuciones o estados internos del maestro, de la de caja negra, donde solo accede a sus salidas (por ejemplo, Distilling Step-by-Step y LaMini-LM). Los LLM como generadores de datos de entrenamiento pertenecen a la segunda familia.
+**Qué es.** La *destilación de conocimiento* transfiere la capacidad de un modelo grande (el *maestro*) a uno pequeño (el *estudiante*), que es el que se despliega (Hinton et al., 2015). Una variante cercana consiste en usar un LLM para *generar datos de entrenamiento sintéticos* con los que se entrena después el modelo pequeño.
+
+**Cómo funciona.** Wang et al. (2024) distinguen dos familias. En la destilación de **caja blanca**, el estudiante accede a las distribuciones de probabilidad o a los estados internos del maestro y aprende a imitarlos (Hinton et al., 2015). En la de **caja negra**, solo accede a sus salidas de texto, por ejemplo respuestas o razonamientos paso a paso (como en Distilling Step-by-Step, Hsieh et al., 2023, y LaMini-LM). Los LLM utilizados como generadores de datos pertenecen a esta segunda familia: producen ejemplos o paráfrasis y el estudiante se ajusta sobre ellos, normalmente con un método eficiente como LoRA.
+
+**Qué requiere.** Acceso a un modelo maestro (con su costo por uso si es de pago), un procedimiento para validar la calidad de los datos generados y una GPU o un equipo con memoria suficiente para ajustar al estudiante.
+
+**Cuándo conviene y limitaciones.** Conviene cuando hay pocos o ningún dato real etiquetado y se dispone de un maestro de calidad. Sus riesgos son que los datos sintéticos pueden carecer de diversidad, heredar sesgos del maestro o no reflejar la distribución real de los usuarios, y que la calidad final queda limitada por la del maestro.
+
+**Referencias canónicas.** Hinton et al. (2015) para la destilación; Hsieh et al. (2023) para la destilación de caja negra con razonamientos.
+
+#### Evidencia del corpus
 
 **Aumento de datos.** Parikh et al. (2023) parten de cinco ejemplos por intención y generan veinte paráfrasis con GPT-3 o con un modelo T5. La paráfrasis mejora entre 2 y 4 puntos al clasificador de referencia en la mayoría de los casos; la generación a partir de descripciones de intención solo ayuda cuando se combina con los ejemplos reales.
 
-**Destilación agéntica.** ElZemity et al. (2026) proponen que un LLM maestro actúe como ingeniero de ML autónomo: genera datos sintéticos de entrenamiento y validación, ajusta con LoRA a un estudiante pequeño (Qwen2.5-0.5B o SmolLM2-135M, ambos dentro del límite), evalúa con métricas agregadas, formula hipótesis de fallos y genera datos dirigidos hasta que el rendimiento se estabiliza. Se evaluó en detección de SMS spam con datos reales apartados del bucle:
+**Destilación agéntica.** ElZemity et al. (2026) proponen que un LLM maestro actúe como ingeniero de ML autónomo (un *agente* que decide y ejecuta los pasos): genera datos sintéticos de entrenamiento y validación, ajusta con LoRA a un estudiante pequeño (Qwen2.5-0.5B o SmolLM2-135M, ambos dentro del límite), evalúa con métricas agregadas, formula hipótesis de fallos y genera datos dirigidos hasta que el rendimiento se estabiliza. Se evaluó en detección de SMS spam con datos reales apartados del bucle:
 
-**Tabla 3.** Exactitud de los estudiantes según el maestro (ElZemity et al., 2026).
+**Tabla 4.** Exactitud de los estudiantes según el maestro (ElZemity et al., 2026).
 
 | Maestro | Estudiante Qwen2.5-0.5B | Estudiante SmolLM2-135M |
 |---|---|---|
@@ -135,21 +208,50 @@ Wang et al. (2024) distinguen la destilación de caja blanca, donde el estudiant
 | Gemini 3 Pro | 85.21 % | 80.46 % |
 | GPT 5.2 Codex | 71.08 % | 59.71 % |
 
-Sin ajuste, los estudiantes alcanzan 49.80 % y 46.85 % de exactitud. El bucle iterativo supera a una línea base DPO con los mismos datos sintéticos (50-80 %). Cada ejecución requirió entre 14 800 y 33 000 tokens y entre 5 y 9 minutos en un Mac Mini M4 de 16 GB. Las limitaciones son que la tarea es binaria, que se usa un único conjunto de prueba (un subconjunto balanceado de 1494 mensajes) y que la calidad final depende fuertemente del maestro, con sesgos de precisión o recall cuando los datos generados están desbalanceados o son poco diversos.
+Sin ajuste, los estudiantes alcanzan 49.80 % y 46.85 % de exactitud. El bucle iterativo supera a una línea base DPO (*direct preference optimization*, un método de ajuste por preferencias) con los mismos datos sintéticos (50-80 %). Cada ejecución requirió entre 14 800 y 33 000 tokens y entre 5 y 9 minutos en un Mac Mini M4 de 16 GB. Las limitaciones son que la tarea es binaria, que se usa un único conjunto de prueba (un subconjunto balanceado de 1494 mensajes) y que la calidad final depende fuertemente del maestro, con sesgos de precisión o recall cuando los datos generados están desbalanceados o son poco diversos.
 
 ### 3.5 Métodos sin entrenamiento sobre activaciones
 
-Chen et al. (2026) comparan dos métodos sin gradientes, NormStat y VecStat (estadísticas de las activaciones del modelo durante la fase de *prefill*), con cabezas MLP, sondas lineales, un RoBERTa-base ajustado y llamadas directas al LLM, en modelos Qwen3 y Llama de 1B a 32B. Dentro del límite de 4B están Llama-3.2-1B y Qwen3-1.7B. Sus conclusiones generales son que:
+**Qué es.** Son métodos que clasifican sin actualizar ningún parámetro por descenso de gradiente. En lugar de entrenar, aprovechan las *activaciones* (valores numéricos intermedios que el modelo calcula al procesar el texto) para extraer una señal sobre la clase del enunciado.
+
+**Cómo funciona.** Durante la fase de *prefill* (cuando el modelo lee el prompt completo antes de generar), se registran las activaciones de las capas internas. Con unos pocos ejemplos etiquetados se calculan estadísticas por clase y un enunciado nuevo se asigna a la clase cuyas estadísticas se parecen más. En el trabajo del corpus, NormStat y VecStat son dos variantes que difieren en qué estadística de las activaciones emplean; la definición exacta de cada una está en Chen et al. (2026). Como comparación, una *sonda lineal* entrena un clasificador lineal sobre activaciones intermedias de un modelo congelado para medir qué información contienen (Alain y Bengio, 2017).
+
+**Qué requiere.** Acceso a las activaciones internas del modelo (no basta una API de texto), unos pocos ejemplos etiquetados y una GPU para la pasada de lectura del prompt.
+
+**Cuándo conviene y limitaciones.** Se proponen como más estables ante prompts de intención mixta o reformulaciones adversariales y no requieren entrenamiento. Su limitación es que en tareas de granularidad fina los clasificadores entrenados suelen rendir mejor y que dependen de decisiones técnicas (qué capas usar, longitud del prompt).
+
+**Referencia canónica.** Chen et al. (2026) para NormStat y VecStat; Alain y Bengio (2017) para las sondas lineales.
+
+#### Evidencia del corpus
+
+Chen et al. (2026) comparan dos métodos sin gradientes, NormStat y VecStat, con cabezas MLP, sondas lineales, un RoBERTa-base ajustado y llamadas directas al LLM, en modelos Qwen3 y Llama de 1B a 32B. Dentro del límite de 4B están Llama-3.2-1B y Qwen3-1.7B. Sus conclusiones generales son que:
 
 - en tareas gruesas (matemáticas, código y texto general) todos los métodos saturan;
 - en tareas finas, los clasificadores entrenados suelen ser mejores;
 - con prompts de intención mixta o reformulaciones adversariales, los métodos sin entrenamiento son más estables.
 
-Resultados relevantes para el rango de menos de 4B: con Llama-3.2-1B las llamadas directas al LLM producen salidas inválidas y no se pudieron evaluar, y NormStat rinde mucho peor que VecStat en identificación de lenguajes de programación (49.21 % frente a 98.99 %). Qwen3-1.7B se emplea en los análisis de calibración y en las ablaciones sobre el número de capas y la longitud máxima del prompt. El RoBERTa-base ajustado obtiene 42.33 % en MATH500, fuera de distribución, lo que sugiere menor generalización que las representaciones de los LLM. Un matiz importante es que las clases del estudio corresponden al enrutamiento de LLM y no a intenciones de diálogo orientado a tareas. El código está disponible públicamente.
+Resultados relevantes para el rango de menos de 4B: con Llama-3.2-1B las llamadas directas al LLM producen salidas inválidas y no se pudieron evaluar, y NormStat rinde mucho peor que VecStat en identificación de lenguajes de programación (49.21 % frente a 98.99 %). Qwen3-1.7B se emplea en los análisis de calibración y en las ablaciones (experimentos que retiran o varían un componente para medir su efecto) sobre el número de capas y la longitud máxima del prompt. El RoBERTa-base ajustado obtiene 42.33 % en MATH500, fuera de distribución, lo que sugiere menor generalización que las representaciones de los LLM. Un matiz importante es que las clases del estudio corresponden al enrutamiento de LLM y no a intenciones de diálogo orientado a tareas. El código está disponible públicamente.
 
 ### 3.6 Compresión y despliegue
 
-Wang et al. (2024) organizan las técnicas para reducir modelos de lenguaje en poda, destilación, cuantización (post-entrenamiento, PTQ, o con entrenamiento consciente, QAT, p. ej. GPTQ a 4 y 2 bits) y aproximaciones de bajo rango.
+**Qué es.** Es el conjunto de técnicas que reducen el tamaño, la memoria o la latencia de un modelo ya entrenado para poder desplegarlo en hardware limitado, como CPU, teléfonos o dispositivos de borde (*edge*).
+
+**Cómo funciona.** Wang et al. (2024) organizan las técnicas en cuatro grupos:
+
+- **Poda** (*pruning*): elimina parámetros poco relevantes. Puede ser *no estructurada* (pesos individuales) o *estructurada* (neuronas, cabezas de atención o capas completas); esta última produce modelos realmente más pequeños.
+- **Destilación:** transfiere el conocimiento a un modelo menor (véase 3.4).
+- **Cuantización:** representa los pesos con menos bits (por ejemplo, 8 o 4 en lugar de 16). Si se aplica a un modelo ya entrenado, sin reentrenarlo, se llama *PTQ* (*post-training quantization*), como GPTQ (Frantar et al., 2023); si se tiene en cuenta durante el entrenamiento, se llama *QAT* (*quantization-aware training*). GGUF es el formato de archivo de llama.cpp para modelos cuantizados, con variantes como Q5_K_M (aproximadamente 5 bits por peso).
+- **Aproximaciones de bajo rango:** descomponen matrices grandes en productos de matrices pequeñas.
+
+A menudo se combina la compresión con una fase de *recuperación*, por ejemplo un ajuste breve con LoRA, para recuperar la calidad perdida.
+
+**Qué requiere.** Poco o ningún dato adicional, pero sí medir el resultado en el hardware donde se desplegará, porque las ganancias teóricas no siempre se materializan.
+
+**Cuándo conviene y limitaciones.** Es necesaria cuando el modelo debe ejecutarse en CPU, en el dispositivo del usuario o con restricciones de memoria. Su riesgo es degradar la calidad de forma desigual entre clases o perder calibración sin que la exactitud global lo muestre.
+
+**Referencias canónicas.** Frantar et al. (2023) para GPTQ; Gerganov (s. f.) para llama.cpp y el formato GGUF; Wang et al. (2024) para la taxonomía general.
+
+#### Evidencia del corpus
 
 Das et al. (2026) estudian poda estructurada, cuantización GGUF y recuperación con LoRA en GPU, CPU y Raspberry Pi 4B (8 GB, con llama.cpp), sobre modelos de Qwen3.5 0.8B, Gemma 3 1B y TinyLlama 1.1B, todos dentro del límite. Las tareas son de preguntas y respuestas y de segmentación (no de intención), pero sus resultados son pertinentes para cualquier clasificador comprimido:
 
@@ -159,7 +261,7 @@ Das et al. (2026) estudian poda estructurada, cuantización GGUF y recuperación
 
 ## 4. Análisis comparativo
 
-**Tabla 4.** Comparación de los trabajos, restringida al rango de menos de 4B.
+**Tabla 5.** Comparación de los trabajos, restringida al rango de menos de 4B.
 
 | Trabajo | Enfoque | Modelos dentro del límite | Resultado principal | Limitación principal |
 |---|---|---|---|---|
@@ -197,15 +299,15 @@ Larson y Leach (2022) ofrecen un panorama de datasets de intención y extracció
 
 La literatura del corpus reporta exactitud, F1 y las métricas siguientes:
 
-- **Exactitud balanceada y F1 por clase.** Das et al. (2026) muestran que la exactitud global puede ocultar el colapso hacia una clase.
-- **Calibración (ECE y puntuación de Brier).** Ganesh et al. (2026).
+- **Exactitud balanceada y F1 por clase.** La exactitud balanceada es el promedio de la exactitud (recall) de cada clase, de modo que no favorece a las clases más frecuentes. Das et al. (2026) muestran que la exactitud global puede ocultar el colapso hacia una clase.
+- **Calibración (ECE y puntuación de Brier).** Una predicción está bien calibrada cuando su confianza coincide con su frecuencia de acierto. El ECE (*expected calibration error*) promedia la diferencia entre confianza y exactitud por intervalos de confianza (Guo et al., 2017); la puntuación de Brier (Brier, 1950) mide el error cuadrático de las probabilidades asignadas. Ganesh et al. (2026).
 - **F1 de la clase fuera de dominio y exactitud en dominio.** Alekseev et al. (2025).
 - **Robustez a perturbaciones** (tipeos, intercambio de palabras) y a entradas de intención mixta o adversariales (Ganesh et al., 2026; Chen et al., 2026).
 - **Costos de despliegue:** latencia por muestra, memoria máxima, tamaño del artefacto y energía en el hardware objetivo (Ganesh et al., 2026; Das et al., 2026).
 
 ### 5.3 Recomendaciones de protocolo derivadas del corpus
 
-1. **Evaluar en varios datasets** y no depender de uno solo: en MASSIVE, los cinco mejores modelos no se distinguen con la prueba de McNemar (Ganesh et al., 2026).
+1. **Evaluar en varios datasets** y no depender de uno solo: en MASSIVE, los cinco mejores modelos no se distinguen con la prueba de McNemar (McNemar, 1947), una prueba estadística para comparar dos clasificadores sobre las mismas muestras (Ganesh et al., 2026).
 2. **Retirar o relativizar SNIPS** por saturación, y preferir MASSIVE, MTOP y los datasets de HINT3 (Ganesh et al., 2026).
 3. **Interpretar los errores con cautela:** la confusión `play_music` → `music_query` aparece como el error principal en 21 de 41 modelos, lo que sugiere ambigüedad en el esquema de etiquetas y no solo debilidad de los modelos.
 4. **Usar decodificación restringida o puntuación de etiquetas** cuando se evalúen modelos pequeños, porque la generación libre puede producir salidas inválidas (Ganesh et al., 2026; Chen et al., 2026).
@@ -226,13 +328,13 @@ La literatura del corpus reporta exactitud, F1 y las métricas siguientes:
 
 A partir de las brechas anteriores, el proyecto puede formularse alrededor de las siguientes preguntas de investigación, siempre dentro del límite de 4B parámetros:
 
-- **RQ1.** ¿Qué exactitud y qué calibración alcanzan, con el mismo presupuesto de datos, los tres enfoques principales: zero-shot con los mejores modelos del rango (Qwen2.5-3B-Instruct, Phi-3.5-mini), embeddings congelados con clasificador ligero y fine-tuning eficiente (por ejemplo, LoRA o IA3) de modelos de 1B a 4B?
-- **RQ2.** ¿Puede el fine-tuning eficiente cerrar o superar la distancia con el mejor zero-shot del estudio (0.660 con un modelo de 7B, fuera del límite) usando solo modelos de menos de 4B?
-- **RQ3.** ¿Cómo varía el rendimiento al reducir el tamaño del modelo (de 3.8B a cientos de millones de parámetros) y al cuantizarlo a 8 y 4 bits, medido con exactitud balanceada, F1 por clase, ECE y latencia?
-- **RQ4.** ¿Cuántos ejemplos reales por intención son necesarios, y cuánto aportan los datos sintéticos generados por un LLM maestro?
-- **RQ5.** ¿Es viable combinar el modelo con un umbral de confianza y un modelo de respaldo para los casos fuera de dominio o dudosos?
+- **RQ1.** ¿Qué exactitud y qué calibración alcanzan, con el mismo presupuesto de datos, los tres enfoques principales: zero-shot con los mejores modelos del rango (Qwen2.5-3B-Instruct, Phi-3.5-mini), embeddings congelados con clasificador ligero y fine-tuning eficiente (por ejemplo, LoRA o IA3) de modelos de 1B a 4B? *(Responde a las brechas 1, 2 y 4.)*
+- **RQ2.** ¿Puede el fine-tuning eficiente cerrar o superar la distancia con el mejor zero-shot del estudio (0.660 con un modelo de 7B, fuera del límite) usando solo modelos de menos de 4B? *(Brecha 1.)*
+- **RQ3.** ¿Cómo varía el rendimiento al reducir el tamaño del modelo (de 3.8B a cientos de millones de parámetros) y al cuantizarlo a 8 y 4 bits, medido con exactitud balanceada, F1 por clase, ECE y latencia? *(Brecha 5.)*
+- **RQ4.** ¿Cuántos ejemplos reales por intención son necesarios, y cuánto aportan los datos sintéticos generados por un LLM maestro? *(Brecha 6.)*
+- **RQ5.** ¿Es viable combinar el modelo con un umbral de confianza y un modelo de respaldo para los casos fuera de dominio o dudosos? *(Brecha 4.)*
 
-Estas preguntas se apoyan en los protocolos de la sección 5.3 y en las líneas base descritas en la sección 3 (AutoIntent, EmbeddingGemma, T-Few y destilación agéntica).
+Estas preguntas se apoyan en los protocolos de la sección 5.3 y en las líneas base descritas en la sección 3 (AutoIntent, EmbeddingGemma, T-Few y destilación agéntica). Las brechas 3 (idioma) y 7 (saturación) no generan una pregunta propia, pero condicionan el diseño: la primera, al elegir los datasets; la segunda, al preferir benchmarks que discriminen entre modelos (sección 5.3).
 
 ## 8. Conclusiones
 
@@ -247,6 +349,8 @@ Dentro del límite de 4B parámetros, la evidencia del corpus apunta a cinco ide
 La principal oportunidad de investigación es comparar estas rutas, con el mismo protocolo, sobre los modelos de 1B a 4B, donde hoy solo existe evidencia zero-shot en intención.
 
 ## 9. Referencias
+
+### 9.1 Trabajos del corpus y fuentes de datos
 
 Alekseev, I., Solomatin, R., Rustamova, D., y Kuznetsov, D. (2025). *AutoIntent: AutoML for Text Classification*. arXiv:2509.21138. Código: <https://github.com/DeepPavlov/AutoIntent>
 
@@ -291,3 +395,76 @@ Yin, Y., Li, C., y Carenini, G. (2026). *IntentGrasp: A Comprehensive Benchmark 
 Zhang, J., et al. (2021). Few-shot intent detection via contrastive pre-training and fine-tuning. *Proceedings of EMNLP 2021*.
 
 Zhang, L., Li, Y., Zhang, S., Zhang, Z., y Li, X. (2025). *Few-Shot Query Intent Detection via Relation-Aware Prompt Learning*. arXiv:2509.05635.
+
+### 9.2 Referencias de las técnicas base (usadas solo para definir conceptos)
+
+Alain, G., y Bengio, Y. (2017). *Understanding intermediate layers using linear classifier probes*. ICLR (taller). arXiv:1610.01644.
+
+Brier, G. W. (1950). Verification of forecasts expressed in terms of probability. *Monthly Weather Review*, 78(1), 1–3.
+
+Brown, T. B., et al. (2020). *Language Models are Few-Shot Learners*. NeurIPS. arXiv:2005.14165.
+
+Dettmers, T., Pagnoni, A., Holtzman, A., y Zettlemoyer, L. (2023). *QLoRA: Efficient Finetuning of Quantized LLMs*. NeurIPS. arXiv:2305.14314.
+
+Feng, F., Yang, Y., Cer, D., Arivazhagan, N., y Wang, W. (2022). Language-agnostic BERT sentence embedding. *Proceedings of ACL 2022*. arXiv:2007.01852.
+
+Frantar, E., Ashkboos, S., Hoefler, T., y Alistarh, D. (2023). *GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers*. ICLR. arXiv:2210.17323.
+
+Gerganov, G. (s. f.). *llama.cpp* [software]. <https://github.com/ggml-org/llama.cpp>
+
+Guo, C., Pleiss, G., Sun, Y., y Weinberger, K. Q. (2017). On calibration of modern neural networks. *Proceedings of ICML*. arXiv:1706.04599.
+
+Hinton, G., Vinyals, O., y Dean, J. (2015). *Distilling the Knowledge in a Neural Network*. arXiv:1503.02531.
+
+Hsieh, C.-Y., et al. (2023). Distilling Step-by-Step! Outperforming larger language models with less training data and smaller model sizes. *Findings of ACL 2023*. arXiv:2305.02301.
+
+Hu, E. J., et al. (2022). *LoRA: Low-Rank Adaptation of Large Language Models*. ICLR. arXiv:2106.09685.
+
+Kusupati, A., et al. (2022). *Matryoshka Representation Learning*. NeurIPS. arXiv:2205.13147.
+
+Lester, B., Al-Rfou, R., y Constant, N. (2021). The power of scale for parameter-efficient prompt tuning. *Proceedings of EMNLP 2021*. arXiv:2104.08691.
+
+McNemar, Q. (1947). Note on the sampling error of the difference between correlated proportions or percentages. *Psychometrika*, 12(2), 153–157.
+
+Muennighoff, N., Tazi, N., Magne, L., y Reimers, N. (2023). MTEB: Massive Text Embedding Benchmark. *Proceedings of EACL 2023*. arXiv:2210.07316.
+
+Reimers, N., y Gurevych, I. (2019). Sentence-BERT: Sentence embeddings using Siamese BERT-networks. *Proceedings of EMNLP-IJCNLP 2019*. arXiv:1908.10084.
+
+Wei, J., et al. (2022). Finetuned language models are zero-shot learners. *ICLR*. arXiv:2109.01652.
+
+Willard, B. T., y Louf, R. (2023). *Efficient Guided Generation for Large Language Models*. arXiv:2307.09702.
+
+## Anexo A. Abreviaturas y términos
+
+| Término | Significado | Descripción breve |
+|---|---|---|
+| ALBERT, BERT, DistilBERT, RoBERTa | Codificadores de texto basados en Transformer | Modelos de cientos de millones de parámetros o menos, usados como base para clasificar texto tras un ajuste |
+| AutoML | *Automated machine learning* | Selección y ajuste automáticos de modelos e hiperparámetros |
+| Banking77, CLINC150, HWU64, MASSIVE, MINDS-14, MTOP, SNIPS, ATIS, HINT3 | Datasets de intención | Véase la sección 5.1 |
+| Base / instruct | Variantes de un modelo | «Base»: solo preentrenado. «Instruct»: ajustado además con instrucciones para seguir órdenes |
+| Caja blanca / caja negra | Tipos de destilación | El estudiante accede, o no, a las probabilidades o estados internos del maestro |
+| Decodificación restringida | Restricción de la salida | Limita la generación a etiquetas válidas |
+| DPO | *Direct preference optimization* | Método de ajuste de un modelo a partir de pares de respuestas preferidas y rechazadas |
+| ECE | *Expected calibration error* | Diferencia media entre la confianza de las predicciones y su exactitud real |
+| Embedding | Vector de texto | Representación numérica de un enunciado en la que textos parecidos quedan cerca |
+| Few-shot / zero-shot | Regímenes de datos | Con pocos ejemplos por clase / sin ejemplos |
+| F1 | Medida F1 | Media armónica de precisión y recall |
+| GGUF | Formato de archivo de llama.cpp | Almacena modelos cuantizados para ejecutarlos en CPU y dispositivos pequeños |
+| IA3 | *Infused adapter by inhibiting and amplifying inner activations* | Adaptador que reescala activaciones internas con vectores aprendidos |
+| Instruction tuning | Ajuste por instrucciones | Entrenamiento con instrucciones y respuestas para que el modelo siga órdenes |
+| LLM / SLM | *Large / small language model* | Modelo de lenguaje grande / pequeño |
+| LoRA, QLoRA | *Low-rank adaptation* / su versión sobre modelo cuantizado a 4 bits | Entrenamiento de matrices de rango bajo sobre pesos congelados |
+| Matryoshka | *Matryoshka representation learning* | Entrenamiento que permite truncar el embedding a menos dimensiones sin perder mucha calidad |
+| MTEB | *Massive Text Embedding Benchmark* | Benchmark para comparar modelos de embeddings en muchas tareas e idiomas |
+| NormStat, VecStat | Métodos sin entrenamiento | Clasificación mediante estadísticas de las activaciones del modelo (Chen et al., 2026) |
+| OOS | *Out-of-scope* | Enunciado que no corresponde a ninguna intención soportada |
+| Pareto-óptimo | Criterio de optimalidad | Un modelo es Pareto-óptimo si ningún otro lo supera en todas las dimensiones a la vez |
+| PEFT | *Parameter-efficient fine-tuning* | Ajuste de una fracción pequeña de los parámetros del modelo |
+| Poda (estructurada / no estructurada) | Compresión | Elimina pesos individuales o estructuras completas (neuronas, cabezas, capas) |
+| Prefill | Fase de lectura del prompt | Procesamiento del prompt completo antes de generar texto |
+| PTQ / QAT | *Post-training quantization* / *quantization-aware training* | Cuantización aplicada tras el entrenamiento / considerada durante él |
+| SAID | Marco de prompt learning de Zhang et al. (2025) | Preentrenamiento con relaciones de sesión y reformulación como prompts |
+| SetFit | *Sentence Transformer Fine-tuning* | Ajuste contrastivo de un codificador de oraciones y cabeza de clasificación |
+| Sonda lineal | *Linear probe* | Clasificador lineal entrenado sobre activaciones congeladas |
+| T-Few | Receta de fine-tuning few-shot | Combina adaptadores IA3 con pérdidas adicionales (Liu et al., 2022) |
+| VRAM | Memoria de la GPU | Memoria necesaria para cargar el modelo y ejecutarlo |
